@@ -33,11 +33,11 @@ set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type")
 set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release MinSizeRel RelWithDebInfo)
 
 find_package(coretoolkit REQUIRED)
-find_package(structure-identification REQUIRED)
 find_package(TBB REQUIRED)
 find_package(Boost REQUIRED)
 find_package(spdlog REQUIRED)
 find_package(nlohmann_json REQUIRED)
+find_package(yaml-cpp REQUIRED)
 
 set(COMMON_NEIGHBOR_ANALYSIS_BOOST_TARGET "")
 if(TARGET Boost::headers)
@@ -52,21 +52,7 @@ else()
     message(FATAL_ERROR "CommonNeighborAnalysis requires a Boost headers target")
 endif()
 
-set(LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/../StructureIdentification/include")
-set(LOCAL_STRUCTURE_IDENTIFICATION_LIB
-    "${CMAKE_SOURCE_DIR}/../StructureIdentification/build-local/build/Release/libstructure-identification.a"
-)
-
-set(COMMON_NEIGHBOR_ANALYSIS_STRUCTURE_IDENTIFICATION_TARGET structure-identification::structure-identification)
-if(EXISTS "${LOCAL_STRUCTURE_IDENTIFICATION_LIB}")
-    add_library(common-neighbor-analysis-local-structure-identification STATIC IMPORTED)
-    set_target_properties(common-neighbor-analysis-local-structure-identification PROPERTIES
-        IMPORTED_LOCATION "${LOCAL_STRUCTURE_IDENTIFICATION_LIB}"
-        INTERFACE_INCLUDE_DIRECTORIES "${LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR}"
-        INTERFACE_LINK_LIBRARIES "coretoolkit::coretoolkit;TBB::tbb;${COMMON_NEIGHBOR_ANALYSIS_BOOST_TARGET};spdlog::spdlog;nlohmann_json::nlohmann_json"
-    )
-    set(COMMON_NEIGHBOR_ANALYSIS_STRUCTURE_IDENTIFICATION_TARGET common-neighbor-analysis-local-structure-identification)
-endif()
+find_package(structure-identification REQUIRED)
 
 set(LIB_SOURCES
     ${CMAKE_SOURCE_DIR}/src/analysis/cna_service.cpp
@@ -79,23 +65,16 @@ set(LIB_SOURCES
 add_library(${PROJECT_NAME}_lib STATIC ${LIB_SOURCES})
 set_target_properties(${PROJECT_NAME}_lib PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-get_target_property(STRUCTURE_IDENTIFICATION_INCLUDE_DIRS ${COMMON_NEIGHBOR_ANALYSIS_STRUCTURE_IDENTIFICATION_TARGET} INTERFACE_INCLUDE_DIRECTORIES)
-if(EXISTS "${LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR}")
-    list(PREPEND STRUCTURE_IDENTIFICATION_INCLUDE_DIRS "${LOCAL_STRUCTURE_IDENTIFICATION_INCLUDE_DIR}")
-endif()
-
-target_include_directories(${PROJECT_NAME}_lib BEFORE PUBLIC
-    ${STRUCTURE_IDENTIFICATION_INCLUDE_DIRS}
-    ${CMAKE_SOURCE_DIR}/include
-)
+target_include_directories(${PROJECT_NAME}_lib PUBLIC ${CMAKE_SOURCE_DIR}/include)
 target_precompile_headers(${PROJECT_NAME}_lib PRIVATE <volt/core/volt.h>)
 target_link_libraries(${PROJECT_NAME}_lib PUBLIC
     ${COMMON_NEIGHBOR_ANALYSIS_BOOST_TARGET}
     TBB::tbb
-    ${COMMON_NEIGHBOR_ANALYSIS_STRUCTURE_IDENTIFICATION_TARGET}
+    structure-identification::structure-identification
     coretoolkit::coretoolkit
     spdlog::spdlog
     nlohmann_json::nlohmann_json
+    yaml-cpp::yaml-cpp
 )
 
 add_executable(${PROJECT_NAME} ${CMAKE_SOURCE_DIR}/src/main.cpp)
@@ -104,7 +83,7 @@ target_precompile_headers(${PROJECT_NAME} PRIVATE <volt/core/volt.h>)
 target_link_libraries(${PROJECT_NAME} PRIVATE
     TBB::tbb
     ${PROJECT_NAME}_lib
-    ${COMMON_NEIGHBOR_ANALYSIS_STRUCTURE_IDENTIFICATION_TARGET}
+    structure-identification::structure-identification
 )
 
 install(TARGETS ${PROJECT_NAME} DESTINATION bin)

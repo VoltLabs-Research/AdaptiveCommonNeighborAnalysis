@@ -294,7 +294,7 @@ void CoordinationStructures::postProcessDiamondNeighbors(
     }
 
     NearestNeighborFinder firstNeighborFinder(4);
-    firstNeighborFinder.prepare(context.positions, context.simCell, nullptr);
+    firstNeighborFinder.prepare(context.positions, context.simCell);
 
     for(size_t i = 0; i < N; ++i){
         int currentType = _structureTypes->getInt(i);

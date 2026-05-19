@@ -98,7 +98,7 @@ void identifyStructuresCNA(StructureAnalysis& analysis){
 
     const int maxNeighborListSize = MAX_NEIGHBORS;
     NearestNeighborFinder neighFinder(maxNeighborListSize);
-    if(!neighFinder.prepare(context.positions, context.simCell, context.particleSelection)){
+    if(!neighFinder.prepare(context.positions, context.simCell)){
         throw std::runtime_error("Error in neighFinder.preapre(...)");
     }
 

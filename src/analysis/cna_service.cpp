@@ -5,6 +5,7 @@
 #include <volt/analysis/cluster_graph_builder.h>
 #include <volt/analysis/cluster_graph_io.h>
 #include <volt/analysis/structure_analysis.h>
+#include <volt/analysis/structure_identification_export.h>
 #include <volt/analysis/cna_cluster_input_adapter.h>
 #include <volt/analysis/cna_structure_analysis.h>
 #include <volt/core/analysis_result.h>
@@ -28,7 +29,7 @@ std::string structureTypeNameForExport(int structureType){
     return structureTypeName(structureType);
 }
 
-json buildMainListing(const std::vector<int>& structureTypes){
+json buildStructureListing(const std::vector<int>& structureTypes){
     std::map<int, int> counts;
 
     for(int rawType : structureTypes){
@@ -42,9 +43,9 @@ json buildMainListing(const std::vector<int>& structureTypes){
         }
 
         listing.push_back({
-            {"structure_type", structureType},
+            {"structure_id", structureType},
             {"structure_name", structureTypeNameForExport(structureType)},
-            {"count", count}
+            {"atom_count", count}
         });
     }
 
@@ -84,58 +85,6 @@ json buildPerAtomProperties(
     }
 
     return perAtom;
-}
-
-json buildAtomsExport(
-    const LammpsParser::Frame& frame,
-    const std::vector<int>& structureTypes,
-    const ParticleProperty* clusterIds
-){
-    std::map<int, std::vector<size_t>> structureAtomIndices;
-    for(size_t i = 0; i < static_cast<size_t>(frame.natoms); ++i){
-        structureAtomIndices[structureTypes[i]].push_back(i);
-    }
-
-    std::vector<int> structureOrder;
-    structureOrder.reserve(structureAtomIndices.size());
-    for(const auto& [structureType, _] : structureAtomIndices){
-        structureOrder.push_back(structureType);
-    }
-    std::sort(structureOrder.begin(), structureOrder.end(), [&](int a, int b){
-        return structureTypeNameForExport(a) < structureTypeNameForExport(b);
-    });
-
-    json atomsByStructure = json::object();
-    for(int st : structureOrder){
-        json atomsArray = json::array();
-        for(size_t atomIndex : structureAtomIndices[st]){
-            const bool hasPosition = atomIndex < frame.positions.size();
-            const auto atomId = atomIndex < frame.ids.size()
-                ? frame.ids[atomIndex]
-                : static_cast<int>(atomIndex);
-
-            if(hasPosition){
-                const auto& pos = frame.positions[atomIndex];
-                atomsArray.push_back({
-                    {"id", atomId},
-                    {"cluster_id", clusterIds ? clusterIds->getInt(atomIndex) : 0},
-                    {"pos", {pos.x(), pos.y(), pos.z()}}
-                });
-            }else{
-                atomsArray.push_back({
-                    {"id", atomId},
-                    {"cluster_id", clusterIds ? clusterIds->getInt(atomIndex) : 0},
-                    {"pos", {0.0, 0.0, 0.0}}
-                });
-            }
-        }
-        atomsByStructure[structureTypeNameForExport(st)] = atomsArray;
-    }
-
-    json exportWrapper;
-    exportWrapper["export"] = json::object();
-    exportWrapper["export"]["AtomisticExporter"] = atomsByStructure;
-    return exportWrapper;
 }
 
 }
@@ -193,7 +142,14 @@ json CommonNeighborAnalysisService::compute(
         }
 
         json result;
-        result["main_listing"] = CnaServiceDetail::buildMainListing(atomStructureTypes);
+        const json structuresListing = CnaServiceDetail::buildStructureListing(atomStructureTypes);
+        result["main_listing"] = {
+            {"total_atoms", frame.natoms},
+            {"structure_count", static_cast<int>(structuresListing.size())}
+        };
+        result["sub_listings"] = {
+            {"structures", structuresListing}
+        };
         result["per-atom-properties"] = CnaServiceDetail::buildPerAtomProperties(
             frame,
             atomStructureTypes,
@@ -208,7 +164,7 @@ json CommonNeighborAnalysisService::compute(
 
             const std::string atomsPath = outputBase + "_atoms.msgpack";
             if(!JsonUtils::writeJsonMsgpackToFile(
-                CnaServiceDetail::buildAtomsExport(frame, atomStructureTypes, context.atomClusters.get()),
+                StructureIdentificationExport::buildStructureIdentificationJson(frame, analysis),
                 atomsPath,
                 false
             )){

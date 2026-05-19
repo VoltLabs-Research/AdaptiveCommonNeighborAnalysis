@@ -81,7 +81,7 @@ void CommonNeighborAnalysisEngine::identifyStructures(){
     );
 
     NearestNeighborFinder neighFinder(MAX_NEIGHBORS);
-    if(!neighFinder.prepare(_context.positions, _context.simCell, _context.particleSelection)){
+    if(!neighFinder.prepare(_context.positions, _context.simCell)){
         throw std::runtime_error("Error in neighFinder.prepare(...)");
     }
 
